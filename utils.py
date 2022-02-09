@@ -184,4 +184,14 @@ def load_pretrained_model(model, pretrained_dict):
 	model_dict.update(pretrained_dict) 
 	# 3. load the new state dict
 	model.load_state_dict(model_dict)
+	
+class KL_divergence(nn.Module):
+    def __init__(self, temperature = 1):
+        super(KL_divergence, self).__init__()
+        self.T = temperature
+    def forward(self, teacher_logit, student_logit):
+
+        KD_loss = nn.KLDivLoss()(F.log_softmax(student_logit/self.T,dim=1), F.softmax(teacher_logit/self.T,dim=1)) * self.T * self.T
+
+        return KD_loss
     
