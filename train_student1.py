@@ -24,7 +24,6 @@ from datasets.colorferet import colorferet
 from datasets.FairFace import FairFace
 from network.teacherNet import Teacher
 from network.studentNet import CNN_RIS
-import other
 
 import utils
 from utils import load_pretrained_model, count_parameters_in_MB, ACC_evaluation
