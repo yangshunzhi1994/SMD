@@ -230,7 +230,7 @@ def train(epoch):
         with torch.no_grad():
             rb1_t1, rb2_t1, rb3_t1, mimic_t1, out_t1 = tnet(img_teacher)
         cls_loss = Cls_crit(out_s1, target)
-        loss = 0.2 * cls_loss + 0.8 * other.KL_divergence(temperature = 20).cuda()(out_t1,out_s1)
+        loss = 0.2 * cls_loss + 0.8 * utils.KL_divergence(temperature = 20).cuda()(out_t1,out_s1)
         loss.backward()
         
         utils.clip_gradient(optimizer, 0.1)
