@@ -17,7 +17,6 @@ import math
 import argparse
 import utils
 import losses
-import other
 from utils import load_pretrained_model
 from datasets.RAF import RAF_multi_teacher
 from datasets.PET import PET_multi_teacher
