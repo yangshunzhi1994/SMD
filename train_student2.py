@@ -24,8 +24,6 @@ from datasets.colorferet import colorferet
 from datasets.FairFace import FairFace
 from network.teacherNet import Teacher
 from network.studentNet import CNN_RIS
-import other
-
 import utils
 from utils import load_pretrained_model, count_parameters_in_MB
 
@@ -38,7 +36,7 @@ parser = argparse.ArgumentParser(description='train kd')
 parser.add_argument('--save_root', type=str, default='results/', help='models and logs are saved here')
 parser.add_argument('--t_model', type=str, default="Teacher", help='Teacher,Teacher1,Teacher3')
 parser.add_argument('--s_model', type=str, default="CNNRIS", help='name of student model')
-parser.add_argument('--distillation', type=str, default="OurDiversity", help='OurDiversity,AEKD,ENDD,Few-Shot,Fukuda,AMTML-KD,You')
+parser.add_argument('--distillation', type=str, default="OurDiversity", help='OurDiversity')
 parser.add_argument('--data_name', type=str, default='RAF', help='RAF,FairFace,colorferet,PET') 
 # training hyper parameters
 parser.add_argument('--epochs', type=int, default=300, help='number of total epochs to run')
@@ -56,11 +54,7 @@ parser.add_argument('--noise', type=str, default='None', help='GaussianBlur,Aver
 
 args, unparsed = parser.parse_known_args()
 
-if args.distillation == 'OurDiversity':
-    path = os.path.join(args.save_root + args.data_name + '_MultiTeacher_OurDiversity_' + str(args.direction)+ '_' + str(args.variance)+ '_KD2')
-#     path = os.path.join(args.save_root + args.data_name + '_MultiTeacher_OurDiversity_' + str(args.direction)+ '_' + str(args.variance)+ '_KD3')
-else:
-    path = os.path.join(args.save_root + args.data_name+ '_MultiTeacher_' + args.distillation)
+path = os.path.join(args.save_root + args.data_name + '_MultiTeacher_OurDiversity_' + str(args.direction)+ '_' + str(args.variance)+ '_KD2')
 writer = SummaryWriter(log_dir=path)
 
 np.random.seed(args.seed)
@@ -98,22 +92,12 @@ if args.t_model == 'Teacher':
 else:
     raise Exception('Invalid name of the teacher network...')
 
-if args.distillation == 'OurDiversity':
-    tcheckpoint = torch.load(os.path.join(args.save_root + args.data_name + '_MultiTeacher_OurDiversity_' + \
+tcheckpoint = torch.load(os.path.join(args.save_root + args.data_name + '_MultiTeacher_OurDiversity_' + \
                                           str(args.direction)+ '_' + str(args.variance),'Best_MultiTeacher_model.t7'))
-else:
-    tcheckpoint = torch.load(os.path.join('results/' + args.data_name+ '_MultiTeacher_'+ \
-                                          args.distillation,'Best_MultiTeacher_model.t7'))
 load_pretrained_model(tnet1, tcheckpoint['Teacher1'])
 load_pretrained_model(tnet2, tcheckpoint['Teacher2'])
 load_pretrained_model(tnet3, tcheckpoint['Teacher3'])
-
-if args.distillation == 'Fukuda':
-    tcheckpoint4 = torch.load('results/RAF_Teacher/Best_Teacher_model.t7')
-    load_pretrained_model(tnet4, tcheckpoint4['tnet'])
-else:
-    load_pretrained_model(tnet4, tcheckpoint['Teacher4'])
-
+load_pretrained_model(tnet4, tcheckpoint['Teacher4'])
 
 print ('The dataset used for training is:   '+ str(args.data_name))
 print ('The distillation method is:       '+ str(args.distillation))
@@ -121,12 +105,7 @@ print ('The type of noise used is:        '+ str(args.noise))
 print ('best_Teacher1_acc is '+ str(tcheckpoint['test_Teacher1_accuracy']))  
 print ('best_Teacher2_acc is '+ str(tcheckpoint['test_Teacher2_accuracy'])) 
 print ('best_Teacher3_acc is '+ str(tcheckpoint['test_Teacher3_accuracy'])) 
-
-if args.distillation == 'Fukuda':
-    print ('best_Teacher4_acc is 87.94 / '+ str(tcheckpoint4['test_acc'])) 
-else:
-    print ('best_Teacher4_acc is '+ str(tcheckpoint['test_Teacher4_accuracy'])) 
-
+print ('best_Teacher4_acc is '+ str(tcheckpoint['test_Teacher4_accuracy'])) 
 print ('best_Teacher_Avg_accuracy is '+ str(tcheckpoint['test_Avg_accuracy'])) 
 print ('best_Teacher_Avg_MAP is '+ str(tcheckpoint['test_Avg_MAP'])) 
 print ('best_Teacher_Avg_F1 is '+ str(tcheckpoint['test_Avg_F1'])) 
@@ -154,13 +133,7 @@ if args.cuda:
     snet.cuda()
     
 criterion = nn.CrossEntropyLoss()
-if args.distillation == 'AMTML-KD':
-    W = torch.randn(272, 1).cuda()
-    W.requires_grad_(True)
-    optimizer = torch.optim.SGD(itertools.chain([W],snet.parameters()), lr = args.lr, momentum = args.momentum,
-                                weight_decay = args.weight_decay,nesterov = True)
-else:
-    optimizer = torch.optim.SGD(snet.parameters(), lr = args.lr, momentum = args.momentum,
+optimizer = torch.optim.SGD(snet.parameters(), lr = args.lr, momentum = args.momentum,
                                 weight_decay = args.weight_decay,nesterov = True)
 
 transform_train = transforms.Compose([
@@ -273,38 +246,6 @@ def train(epoch):
         if args.distillation == 'OurDiversity':
             mimic = (out_t1+out_t2+out_t3+out_t4)/4
             loss = 0.2 * cls_loss + 0.8 * other.KL_divergence(temperature = 20).cuda()(mimic,out_s)
-#             loss = losses.Dynamic_MultiTeacher().cuda()(out_t1, out_t2, out_t3, out_t4, out_s, target)
-        elif args.distillation == 'USTE':
-            mimic = other.USTE_prediction(temperature = 1).cuda()(out_t1, out_t2, out_t3, out_t4)
-            loss = 0.1*criterion(out_s, target) + 0.9*other.KL_divergence(temperature = 6).cuda()(mimic,out_s)
-        elif args.distillation == 'AEKD': #  Agree to Disagree: Adaptive Ensemble Knowledge Distillation in Gradient Space
-            loss_div = other.AEKD().cuda()(out_t1,out_t2,out_t3,out_t4, out_s)
-            loss = cls_loss + 0.9 * loss_div
-        elif args.distillation == 'ENDD':
-            loss = other.ENDD().cuda()(out_t1, out_t2, out_t3, out_t4, out_s)
-        elif args.distillation == 'Few-Shot':
-            mimic = (out_t1+out_t2+out_t3+out_t4)/4
-            loss = 0.2*criterion(out_s, target) + 0.8*other.KL_divergence(temperature = 10).cuda()(mimic,out_s)
-        elif args.distillation == 'Fukuda':
-            #Generalized Knowledge Distillation from an Ensemble of Specialized Teachers Leveraging Unsupervised Neural Clustering
-            loss1 = - torch.sum(F.softmax(out_t1,dim=1) * F.log_softmax(out_s,dim=1), 1, keepdim=False)
-            loss2 = - torch.sum(F.softmax(out_t2,dim=1) * F.log_softmax(out_s,dim=1), 1, keepdim=False)
-            loss3 = - torch.sum(F.softmax(out_t3,dim=1) * F.log_softmax(out_s,dim=1), 1, keepdim=False)
-            loss4 = - torch.sum(F.softmax(out_t4,dim=1) * F.log_softmax(out_s,dim=1), 1, keepdim=False)
-            loss = 0.16*loss1 + 0.16*loss2 + 0.16*loss3 + 0.5*loss4
-        elif args.distillation == 'AMTML-KD': #  daptive Multi-Teacher Multi-level Knowledge Distillation
-            alpha = torch.cat((mimic_t1.mm(W).unsqueeze(0), mimic_t2.mm(W).unsqueeze(0), mimic_t3.mm(W).unsqueeze(0), \
-                        mimic_t4.mm(W).unsqueeze(0)),0)
-            alpha = alpha.squeeze(2).transpose(0, 1)
-            weight = F.softmax(alpha)
-            weight = torch.unsqueeze(weight, dim=2)
-            te_scores_Tensor = torch.cat((out_t1.unsqueeze(1), out_t2.unsqueeze(1), out_t3.unsqueeze(1), out_t4.unsqueeze(1)),1)
-            weighted_logits = weight * te_scores_Tensor 
-            weighted_logits = torch.sum(weighted_logits, dim=1)
-            loss = other.AMTML_KD().cuda()(out_s, target, weighted_logits, T=5.0, alpha=0.7)
-        elif args.distillation == 'You': # Learning from Multiple Teacher Networks. KDD 2017
-            mimic = (out_t1+out_t2+out_t3+out_t4)/4
-            loss = 0.2*criterion(out_s, target) + 0.8*other.KL_divergence(temperature = 20).cuda()(mimic,out_s)
         else:
             raise Exception('Invalid distillation name...')
         loss.backward()
