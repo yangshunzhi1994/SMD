@@ -245,7 +245,7 @@ def train(epoch):
         cls_loss = Cls_crit(out_s, target)
         if args.distillation == 'OurDiversity':
             mimic = (out_t1+out_t2+out_t3+out_t4)/4
-            loss = 0.2 * cls_loss + 0.8 * other.KL_divergence(temperature = 20).cuda()(mimic,out_s)
+            loss = 0.2 * cls_loss + 0.8 * utils.KL_divergence(temperature = 20).cuda()(mimic,out_s)
         else:
             raise Exception('Invalid distillation name...')
         loss.backward()
