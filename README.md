@@ -1,2 +1,2 @@
-# MTKD
-Sample-wise Multi-Teacher Knowledge Distillation for Low-resolution Object Recognition
+# SMD
+Sample-wise Multi-teacher Distillation with Diverse Dark Knowledge
